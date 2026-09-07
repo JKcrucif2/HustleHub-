@@ -92,4 +92,4 @@ To run this secure API locally, you will need Node.js installed.
 
 ## Demonstration Video
 
-[Click here to view the Part 1 Demonstration Video](VIDEO_LINK_HERE)
+[Click here to view the Part 1 Demonstration Video]()
