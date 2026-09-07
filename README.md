@@ -90,6 +90,12 @@ To run this secure API locally, you will need Node.js installed.
 **3. Input Validation (Error Handling)**
 ![Invalid Login Response](./evidence/login-invalid.png)
 
+## Env File
+
+*Note: The `.env` file is ignored by `.gitignore` for security purposes, but a screenshot of the file structure is provided below. It was placed in the `api` root folder.*
+
+![Env File Configuration](./evidence/env.png)
+
 ## Demonstration Video
 
-[Click here to view the Part 1 Demonstration Video]()
+[Click here to view the Part 1 Demonstration Video](https://youtu.be/zC0LbtVa8sE)
