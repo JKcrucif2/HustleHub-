@@ -1,101 +1,98 @@
-# HustleHub+ API
+# HustleHub+ Secure Freelance Marketplace (MERN)
 
-## System Overview & Intended Users
+HustleHub+ is a full-stack MERN marketplace where Freelancers list services (gigs) and Clients browse and book them through a simulated payment. Every booking creates a transaction record, and each freelancer's income is tracked from those transactions.
 
-HustleHub+ is a secure freelance marketplace platform that connects service providers with clients. The system depends on a secure backend API that processes sensitive transactional and credential data.
-The intended users of this system include:
+## Features
 
-* Freelancers: Users who advertise their services, manage gigs, and track their income.
-* Clients: Users who browse available services and book gigs.
-* Administrators: Users responsible for platform oversight (to be implemented in later phases).
+* Register and log in as a Client or Freelancer (JWT authentication)
+* Browse and search gigs by keyword and category
+* **Freelancers:** create, update and delete their own gigs; view bookings received and total income
+* **Clients:** book gigs with a simulated payment; view their bookings and transactions
+* Each booking and its transaction are saved together in a single MongoDB transaction
 
-## System Architecture
+## Security Measures
 
-```mermaid
-graph TD
-    subgraph Client Boundary
-        UI[React.js Frontend]
-        Storage[Token Storage]
-    end
+| Control | Implementation |
+|---------|----------------|
+| Authentication | JWT (HS256, 1 h expiry) required on all protected routes; bcrypt password hashing (12 rounds); strong password policy |
+| Authorisation (RBAC) | Role middleware: only Freelancers manage gigs and view income, only Clients book. Ownership checks stop users modifying or viewing others' data (403). Registering as `Admin` is blocked |
+| Validation & sanitisation | `express-validator` on all inputs; XSS tags stripped with `xss`; NoSQL operators (`$`) removed and Mongoose `sanitizeFilter` enabled; 10 KB body limit |
+| Rate limiting | Login/register: 20 failed attempts / 15 min; bookings: 10 / 15 min per user; all API routes: 300 / 15 min |
+| Security headers | Helmet with a strict Content Security Policy, HSTS, `nosniff`, frame protection; CSP on the React app; CORS restricted to the frontend |
+| Safe errors | Generic error messages with no stack traces; login does not reveal whether an email exists; booking price taken from the server |
+| Transport & secrets | HTTPS (TLS); secrets kept in `.env` (git-ignored), with `.env.example` provided |
 
-    subgraph Network Security
-        HTTPS[HTTPS / TLS Encryption]
-    end
+## Running the Application
 
-    subgraph Server Boundary
-        API[Node.js + Express API]
-        Val[Input Validation]
-        Auth[JWT Authentication Middleware]
-        Logic[Controllers & Business Logic]
-        Hash[Bcrypt Password Hashing]
-    end
+**Prerequisites:** Node.js 20+, a MongoDB Atlas database, OpenSSL.
 
-    subgraph Database Boundary
-        DB[(MongoDB)]
-    end
-
-    UI -->|JSON Payloads| HTTPS
-    HTTPS -->|Secure Request| API
-    API --> Val
-    Val -->|Sanitized Data| Auth
-    Auth -->|Validated Token| Logic
-    Logic --> Hash
-    Logic --> DB
-    DB --> Logic
-    Logic --> API
-    API --> HTTPS
-    HTTPS --> UI
+**Backend**
+```bash
+cd api
+npm install
+mkdir certs && cd certs
+openssl req -nodes -new -x509 -keyout server.key -out server.cert -days 365 -subj "/CN=localhost"
+cd ..
+cp .env.example .env   # add your MONGO_URI and JWT_SECRET
+npm run dev            # https://localhost:5001
 ```
 
-## Architecture Breakdown
+**Frontend** (second terminal)
+```bash
+cd client
+npm install
+npm run dev            # http://localhost:5173
+```
 
-The HustleHub+ backend is built on a MERN stack foundation, utilizing Node.js and Express to deliver a secure API. The architecture is divided into strict boundaries to enforce a separation of concerns:
+## Testing
 
-* Client Boundary: The React frontend handles the user interface and securely stores authentication tokens.
-* Network Security: All transit data is encrypted using HTTPS and a local SSL certificate to prevent data interception.
-* Server Boundary: The Express API acts as the central gatekeeper. It processes incoming requests through sequential middleware (validation and authentication) before passing them to the business-logic controllers.
-* Database Boundary: MongoDB serves as the data persistence layer, completely isolated from direct client access to protect confidential user and financial data.
+**Backend: Postman + Newman.** The collection is at `api/tests/postman/HustleHub.postman_collection.json`. It covers authentication, gigs, bookings, transactions, RBAC (401/403), XSS and NoSQL injection, security headers and rate limiting. Run it with the API running:
+```bash
+cd api
+npm run test:api        # main suite + HTML report in api/tests/reports/
+npm run test:ratelimit  # shows 429 responses (run last, it blocks logins for 15 min)
+```
 
-## Security Implementation & Rationale
+**Frontend: Vitest + React Testing Library.** Tests component rendering and user interaction (login, registration, browsing gigs, booking, protected routes).
+```bash
+cd client
+npm test
+```
 
-Security is a primary architectural concern, not an afterthought. The following controls have been implemented:
+## Screenshots
 
-* Token-Based Authentication (JWT): Authentication and session management are driven by JSON Web Tokens (JWT) to ensure stateless, secure interactions. Upon successful registration or login, the API generates a JWT containing the user’s identification. The JWT Authentication Middleware intercepts subsequent requests and verifies the token’s cryptographic signature; if invalid, the API rejects it with a safe 401 Unauthorized response.
-* Input Validation: To mitigate injection attacks and preserve data integrity, the API applies strict input validation at the edge. Malicious or missing inputs are immediately rejected. Error responses are tightly controlled to remain user-friendly while strictly preventing exposure of internal system details such as stack traces or file paths.
-* Password Hashing (Bcrypt): Plain-text passwords are never retained under any circumstances. Bcrypt hashes passwords before storage, guaranteeing that even if the database is compromised, user credentials remain mathematically irreversible.
-* HTTPS Execution: Enforcing TLS encryption ensures that highly sensitive data, particularly user credentials and active JWTs, cannot be compromised via man-in-the-middle (MITM) attacks over the network.
+**Postman**
 
-## Setup & Run Instructions
+| Collection | Collection run results |
+|---|---|
+| ![Postman collection](./evidence/evidence_part2/postman-collection.png) | ![Postman run results](./evidence/evidence_part2/postman-run-results.png) |
 
-To run this secure API locally, you will need Node.js installed. 
+**Newman**
 
-1. **Install Dependencies:** Open your terminal in the `api` folder and run:
-   `npm install`
-2. **Generate Security Certificates:** Create a `certs` folder inside the `api` directory and run OpenSSL to generate your self-signed certificate:
-   `openssl req -nodes -new -x509 -keyout server.key -out server.cert -days 365`
-3. **Environment Variables:** Ensure you have a `.env` file in the root of the `api` directory containing your local port and any necessary secret keys.
-4. **Start the Server:** Run the following command to start the API securely over HTTPS:
-   `npm run dev`
+| Test run (CLI) | HTML report |
+|---|---|
+| ![Newman results](./evidence/evidence_part2/newman-results.png) | ![Newman report](./evidence/evidence_part2/newman-report.png) |
+| **Rate limiting (429)** | **Rate limiting HTML report** |
+| ![Rate limit](./evidence/evidence_part2/newman-ratelimit.png) | ![Rate limit report](./evidence/evidence_part2/newman-ratelimit-report.png) |
 
-## API Testing Evidence
+**Frontend tests (Vitest)**
 
-*Note: The following screenshots demonstrate successful API functionality and error handling using Postman.*
+![Vitest](./evidence/evidence_part2/vitest-results.png)
 
-**1. User Registration (Success)**
-![Registration Success Response](./evidence/register-success.png)
+**Application**
 
-**2. User Login & JWT Generation**
-![Login Success Response](./evidence/login-success.png)
+| Register | Login | Browse gigs |
+|---|---|---|
+| ![Register](./evidence/evidence_part2/register.png) | ![Login](./evidence/evidence_part2/login.png) | ![Browse gigs](./evidence/evidence_part2/browse-gigs.png) |
 
-**3. Input Validation (Error Handling)**
-![Invalid Login Response](./evidence/login-invalid.png)
+| Create gig | Booking (simulated payment) | Booking confirmed |
+|---|---|---|
+| ![Create gig](./evidence/evidence_part2/create-gig.png) | ![Booking](./evidence/evidence_part2/purchse-booking.png) | ![Booking confirmed](./evidence/evidence_part2/booking-confirmed.png) |
 
-## Env File
-
-*Note: The `.env` file is ignored by `.gitignore` for security purposes, but a screenshot of the file structure is provided below. It was placed in the `api` root folder.*
-
-![Env File Configuration](./evidence/env.png)
+| Client bookings | Freelancer dashboard (income) | Access denied (RBAC) |
+|---|---|---|
+| ![Client bookings](./evidence/evidence_part2/client-bookings.png) | ![Dashboard](./evidence/evidence_part2/freelancer-dashboard.png) | ![Access denied](./evidence/evidence_part2/access-denied.png) |
 
 ## Demonstration Video
 
-[Click here to view the Part 1 Demonstration Video](https://youtu.be/zC0LbtVa8sE)
+[Watch the demonstration video](https://youtu.be/3Hc0sNXJRpc)
